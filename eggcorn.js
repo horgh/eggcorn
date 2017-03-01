@@ -1,0 +1,255 @@
+// This is an AWS Lambda function which accepts comments posted on pages.
+//
+// My intended use case is for comments on my blog posts.
+//
+// The function takes input from an HTTP POST'd form
+// (application/x-www-form-urlencoded), publishes the comment via SNS, and
+// outputs an HTML page.
+
+/* jshint node: true */
+/* jshint esversion: 6 */
+
+"use strict";
+
+const AWS = require('aws-sdk');
+const config = require('./config.js');
+const querystring = require('querystring');
+const uuidV1 = require('uuid/v1');
+
+// Note for Lambda functions we do not need to set credentials on the AWS
+// config.
+AWS.config.region = config.aws_region;
+
+// Lambda handler function.
+//
+// We send back the HTML as the result of function execution by passing a string
+// containing HTML as the result to the callback. For documentation about how to
+// use the callback, please see
+// http://docs.aws.amazon.com/lambda/latest/dg/nodejs-prog-model-handler.html#nodejs-prog-model-handler-callback
+exports.handler = function(evt, context, callback) {
+	const comment = get_comment(evt);
+	if (typeof comment === 'string') {
+		callback(comment);
+		return;
+	}
+
+	publish_comment_to_sns(
+		config.sns_arn,
+		comment,
+		function(err, comment) {
+			if (err) {
+				const html = make_error_html(err);
+				// Tell Lambda there was no error. Because we'd rather show an error page
+				// than Lambda's raw JSON error response.
+				callback(null, html);
+				return;
+			}
+
+			const html = make_success_html(comment);
+			callback(null, html);
+		}
+	);
+};
+
+// Retrieve and validate input (our comment) from the Lambda event.
+//
+// We also assign an identifier and the time we receive the comment.
+//
+// Parameters:
+// - evt, Object passed to Lambda function. It should have these properties set:
+//   - body, string, which should be application/x-www-form-urlencoded and be
+//     the raw request body from the user. The URL encoded fields that must be
+//     present are:
+//     - name, string, the commenter's name
+//     - email, string, the commenter's email
+//     - text, string, the comment
+//     - url, string, the page to comment on
+//   - ip, string, the source IP.
+//   - useragent, string, the source User-Agent.
+//
+// Returns: An object describing the comment, or a string with a plaintext error
+// message.
+//
+// The Object describing the comment has fields:
+// - name, string, the name the commenter supplied.
+// - email, string, the email address the commenter supplied.
+// - text, string, the comment text.
+// - url, string, the URL this comment relates to.
+// - ip, string, the IP submitting the comment.
+// - useragent, string, the user-agent submitting the comment.
+// - time, integer, epoch time of receipt of comment.
+// - id, string, UUID generated for this comment.
+//
+// We validate each string field is not zero length.
+const get_comment = function(evt) {
+	const comment = {};
+
+	// Pull out the fields from the request body.
+
+	if (!evt.hasOwnProperty('body') || typeof evt.body !== 'string') {
+		return 'No body found';
+	}
+
+	// parse() decodes to UTF-8.
+	const params = querystring.parse(evt.body);
+
+	const body_fields = ['name', 'email', 'text', 'url'];
+	for (let i = 0; i < body_fields.length; i++) {
+		const field = body_fields[i];
+
+		if (!params.hasOwnProperty(field) || typeof params[field] !== 'string') {
+			return 'Missing field: ' + field;
+		}
+
+		const value = params[field].trim();
+		if (value.length === 0) {
+			return 'Field must not be blank: ' + field;
+		}
+
+		comment[field] = value;
+	}
+
+	// Pull out other metadata from the event.
+
+	const metadata_fields = ['ip', 'useragent'];
+	for (let i = 0; i < metadata_fields.length; i++) {
+		const field = metadata_fields[i];
+
+		if (!evt.hasOwnProperty(field) || typeof evt[field] !== 'string') {
+			return 'Missing metadata: ' + field;
+		}
+
+		const value = evt[field].trim();
+		if (value.length === 0) {
+			return 'Metadata must not be blank: ' + field;
+		}
+
+		comment[field] = value;
+	}
+
+	// Set some fields we generate here.
+
+	comment.id = uuidV1();
+	comment.time = Date.now();
+
+	return comment;
+};
+
+// Publish the given comment to SNS.
+//
+// Parameters:
+// sns_arn, ARN string to publish to.
+// comment, Object. See get_comment() for its properties.
+// callback, function to call after trying to publish. The first parameter
+//   should be an error message (or null if there was no error), and the second
+//   should be the comment. This is so we can report an error to the user if
+//   necessary.
+//
+// Returns: None.
+const publish_comment_to_sns = function(sns_arn, comment, callback) {
+	const msg = 'New comment from ' + comment.name + ":\n" + comment.text;
+	console.log(msg);
+
+	const sns = new AWS.SNS();
+
+	sns.publish(
+		{
+			'TopicArn':          sns_arn,
+			'Message':           msg,
+			'Subject':           'New comment',
+			// Pass some additional data along.
+			'MessageAttributes': {
+				'name':      {'DataType': 'String', 'StringValue': comment.name           },
+				'email':     {'DataType': 'String', 'StringValue': comment.email          },
+				'text':      {'DataType': 'String', 'StringValue': comment.text           },
+				'url':       {'DataType': 'String', 'StringValue': comment.url            },
+				'ip':        {'DataType': 'String', 'StringValue': comment.ip             },
+				'useragent': {'DataType': 'String', 'StringValue': comment.useragent      },
+				'time':      {'DataType': 'Number', 'StringValue': comment.time.toString()},
+				'id':        {'DataType': 'String', 'StringValue': comment.id             }
+			}
+		},
+		function(err, data) {
+			if (err) {
+				console.log("sns.publish failed:");
+				console.log(err);
+				callback("Unable to publish comment", comment);
+				return;
+			}
+			callback(null, comment);
+		}
+	);
+};
+
+// Make HTML page (as a string) describing an error.
+//
+// Parameters:
+// - err, string, an error message to display
+//
+// Returns: A string, HTML
+const make_error_html = function(err) {
+	if (typeof err !== 'string' || err.length === 0) {
+		err = 'Error message is missing';
+	}
+
+	const html = `<!DOCTYPE html>
+<meta charset="utf-8">
+<title>` + htmlEscape(config.page_title) + ` - Error!</title>
+<meta name="viewport" content="width=device-width, user-scalable=no">
+<h1>Error!</h1>
+<p>Unfortunately I was not able to submit your comment. Sorry!</p>
+<p>The error was: ` + htmlEscape(err) + `</p>
+<p>If you think this is a mistake, I'd appreciate hearing about it!
+Please contact me at ` + htmlEscape(config.admin_email) + `. Thank you!</p>
+`;
+
+	return html;
+};
+
+// Make HTML page (as a string) claiming success.
+//
+// Parameters:
+// - comment, Object, refer to get_comment() for information about this object.
+//
+// Returns a string, HTML.
+const make_success_html = function(comment) {
+	const html = `<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, user-scalable=no">
+<title>` + htmlEscape(config.page_title) + ` - Thank you</title>
+<h1>Thank you</h1>
+<p>Thanks for the comment, ` + htmlEscape(comment.name) + `!
+You should see it posted soon.</p>
+<p>To go back where you were, please click
+<a href="` + htmlEscape(comment.url) + `">here</a>.</p>
+`;
+
+	return html;
+};
+
+// HTML escape the given string.
+//
+// Parameter: A string to escape for safe inclusion in HTML.
+//
+// Returns a string with the following characters escaped:
+// & becomes &amp;
+// < becomes &lt;
+// > becomes &gt;
+// ' becomes &#39;
+// " becomes &#34;
+//
+// There are node packages that provide this functionality but:
+// - This is simple enough to write, so I'd rather avoid a dependency.
+// - The one I was thinking of, html-entities, appears to escape many more
+//   characters than I think is necessary (beyond the 5 I mention).
+const htmlEscape = function(s) {
+	if (typeof s !== 'string') {
+		return '';
+	}
+
+	return s.replace('&', '&amp;')
+		.replace('<', '&lt;')
+		.replace('>', '&gt;')
+		.replace("'", '&#39;')
+		.replace('"', '&#34;');
+};

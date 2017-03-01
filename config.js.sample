@@ -1,0 +1,13 @@
+module.exports = {
+  // AWS region for the Lambda function. e.g., us-west-2
+  'aws_region': '',
+
+  // SNS ARN to publish to. e.g., arn:aws:sns:us-west-2:....
+  'sns_arn': '',
+
+	// Page title. e.g., My Blog
+	'page_title': '',
+
+	// Admin email address. We show it on error pages. e.g., admin@example.com
+	'admin_email': ''
+};

@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Sample form</title>
+<meta name="viewport" content="width=device-width, user-scalable=no">
+<h1>Sample form</h1>
+<p>Post a comment:</p>
+<form method="POST"
+			action="https://3m8wnld8si.execute-api.us-west-2.amazonaws.com/eggcorn">
+	<input type="text" name="name" placeholder="Your name">
+	<input type="text" name="email" placeholder="Your email address">
+	<textarea name="text" placeholder="Your comment"></textarea>
+	<input type="hidden" name="url"
+		value="https://blog.summercat.com/fun-with-gifs.html">
+	<input type="submit" value="Post comment">
+</form>
