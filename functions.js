@@ -154,13 +154,13 @@ exports.make_error_html = function(config, err) {
 
 	const html = `<!DOCTYPE html>
 <meta charset="utf-8">
-<title>` + exports.htmlEscape(config.page_title) + ` - Error!</title>
+<title>` + exports.html_escape(config.page_title) + ` - Error!</title>
 <meta name="viewport" content="width=device-width, user-scalable=no">
 <h1>Error!</h1>
 <p>Unfortunately I was not able to submit your comment. Sorry!</p>
-<p>The error was: ` + exports.htmlEscape(err) + `</p>
+<p>The error was: ` + exports.html_escape(err) + `</p>
 <p>If you think this is a mistake, I'd appreciate hearing about it!
-Please contact me at ` + exports.htmlEscape(config.admin_email) + `.
+Please contact me at ` + exports.html_escape(config.admin_email) + `.
 Thank you!</p>
 `;
 
@@ -178,12 +178,12 @@ exports.make_success_html = function(config, comment) {
 	const html = `<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, user-scalable=no">
-<title>` + exports.htmlEscape(config.page_title) + ` - Thank you</title>
+<title>` + exports.html_escape(config.page_title) + ` - Thank you</title>
 <h1>Thank you</h1>
-<p>Thanks for the comment, ` + exports.htmlEscape(comment.name) + `!
+<p>Thanks for the comment, ` + exports.html_escape(comment.name) + `!
 You should see it posted soon.</p>
 <p>To go back where you were, please click
-<a href="` + exports.htmlEscape(comment.url) + `">here</a>.</p>
+<a href="` + exports.html_escape(comment.url) + `">here</a>.</p>
 `;
 
 	return html;
@@ -204,14 +204,14 @@ You should see it posted soon.</p>
 // - This is simple enough to write, so I'd rather avoid a dependency.
 // - The one I was thinking of, html-entities, appears to escape many more
 //   characters than I think is necessary (beyond the 5 I mention).
-exports.htmlEscape = function(s) {
+exports.html_escape = function(s) {
 	if (typeof s !== 'string') {
 		return '';
 	}
 
-	return s.replace('&', '&amp;')
-		.replace('<', '&lt;')
-		.replace('>', '&gt;')
-		.replace("'", '&#39;')
-		.replace('"', '&#34;');
+	return s.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/'/g, '&#39;')
+		.replace(/"/g, '&#34;');
 };
