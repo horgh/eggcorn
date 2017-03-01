@@ -3,9 +3,9 @@ all: package.zip
 clean:
 	rm -rf build package.zip
 
-package.zip: build node_modules eggcorn.js config.js
+package.zip: build node_modules eggcorn.js config.js functions.js
 	rm -rf build/*
-	cp -a eggcorn.js config.js node_modules build
+	cp -a eggcorn.js config.js functions.js node_modules build
 	(cd build && zip -r ../package.zip .)
 
 build:

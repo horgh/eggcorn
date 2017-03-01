@@ -111,5 +111,10 @@ It makes use of these AWS components:
       them.
   * Test making a request. You should receive HTML and an email from SNS.
     * Using cURL:
-      `curl -v -d 'name=horgh+washere&email=horgh%20example.com&text=hi%20there&url=https%3a%2f%2fwww.example.com' https://xxx.execute-api.us-west-2.amazonaws.com/eggcorn`
+      `curl -v -d 'name=horgh+washere&email=horgh%40example.com&text=hi%20there&url=https%3a%2f%2fwww.example.com' https://xxx.execute-api.us-west-2.amazonaws.com/eggcorn`
       where the URL is the Invoke URL for your stage.
+
+
+# TODO
+  * Rate limiting (API Gateway configuration may suffice)
+  * Captcha
