@@ -11,6 +11,10 @@ const functions = require('./functions.js');
 const run_tests = function() {
 	let failed = 0;
 
+	if (!test_handle_request()) {
+		failed++;
+	}
+
 	if (!test_get_comment()) {
 		failed++;
 	}
@@ -37,6 +41,126 @@ const run_tests = function() {
 	}
 
 	console.log("All tests passed.");
+	return true;
+};
+
+const test_handle_request = function() {
+	const tests = [
+		// Body has all fields, but some are blank.
+		{
+			body: 'name=Joe%20Public&email=joe%40example.com&text=&url=https%3a%2f%2fwww.example.com',
+			ip: '127.0.0.1',
+			useragent: 'A bot',
+			sns_succeeds: true,
+			output_patterns: [
+				/The error was: Field must not be blank: text/
+			]
+		},
+
+		// Success
+		{
+			body: 'name=Joe%20Public&email=joe%40example.com&text=nice%20nice&url=https%3a%2f%2fwww.example.com',
+			ip: '127.0.0.1',
+			useragent: 'A bot',
+			sns_succeeds: true,
+			output_patterns: [
+				/Thanks for the comment, Joe Public!/,
+			],
+		},
+
+		// Valid request, but SNS publishing fails.
+		{
+			body: 'name=Joe%20Public&email=joe%40example.com&text=nice%20nice&url=https%3a%2f%2fwww.example.com',
+			ip: '127.0.0.1',
+			useragent: 'A bot',
+			sns_succeeds: false,
+			output_patterns: [
+				/The error was: Unable to publish comment/
+			],
+		},
+	];
+
+	const config = {
+		sns_arn: 'sns:arn',
+		page_title: 'My site',
+		admin_email: 'will@example.com'
+	};
+
+	let published_object = null;
+
+	const dummy_sns_that_succeeds = {
+		publish: function(o, callback) {
+			published_object = o;
+			callback(null, {});
+		}
+	};
+
+	const dummy_sns_that_fails = {
+		publish: function(o, callback) {
+			published_object = o;
+			callback('aws is down', {});
+		}
+	};
+
+	const dummy_date = { now: function() { return 123; } };
+	const dummy_uuid = function() { return 'aaa-bbb'; };
+
+	let request_err = null;
+	let request_html = null;
+
+	const request_callback = function(err, html) {
+		request_err = err;
+		request_html = html;
+	};
+
+	let failed = 0;
+	test_loop:
+	for (let i = 0; i < tests.length; i++) {
+		const test = tests[i];
+
+		const evt = {
+			body: test.body,
+			ip: test.ip,
+			useragent: test.useragent
+		};
+
+		if (test.sns_succeeds) {
+			functions.handle_request(config, dummy_sns_that_succeeds, dummy_date,
+				dummy_uuid, evt, request_callback);
+		} else {
+			functions.handle_request(config, dummy_sns_that_fails, dummy_date,
+				dummy_uuid, evt, request_callback);
+		}
+
+		// Error result we want to always be false. We report error in HTML instead.
+		if (request_err !== null) {
+			console.log("handle_request error was not null?");
+			failed++;
+			continue;
+		}
+
+		for (let j = 0; j < test.output_patterns.length; j++) {
+			const pattern = test.output_patterns[j];
+
+			if (request_html.match(pattern) === null) {
+				console.log("handle_request did not have pattern: " + pattern);
+				console.log(request_html);
+				failed++;
+				break test_loop;
+			}
+		}
+
+		functions.handle_request(config, dummy_sns_that_succeeds, dummy_date,
+			dummy_uuid, evt, request_callback);
+
+	}
+
+	if (failed > 0) {
+		console.log("handle_request: " + failed + "/" + tests.length +
+			" tests failed!");
+		return false;
+	}
+
 	return true;
 };
 

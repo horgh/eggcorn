@@ -9,6 +9,59 @@
 
 const querystring = require('querystring');
 
+// The Lambda handler function calls this function. It receives the request (in
+// its event parameter) and calls a callback to pass back the result.
+//
+// We send back the HTML as the result of function execution by passing a string
+// containing HTML as the result to the callback. For documentation about the
+// Lambda callback function's behaviour, please see
+// http://docs.aws.amazon.com/lambda/latest/dg/nodejs-prog-model-handler.html#nodejs-prog-model-handler-callback
+//
+// Rather than using the callback's error parameter, we try to always indicate
+// there was no error (by passing null as its first parameter) and show an
+// error page by making that the result. This is because if we use the error
+// parameter then our result is JSON. This is not nice when we expect the source
+// of the request to be browsers.
+//
+// Parameters:
+// - config. Object. The eggcorn config object.
+// - sns. Object. This object must have a publish() function. For its input,
+//   refer to the AWS.SNS documentation.
+// - date. Object. This object must provide a now() function which returns the
+//   epoch time in milliseconds.
+// - uuidgen. Function. Calling this function must generate a UUID.
+// - evt. Object. This is the Lambda event object containing the input for the
+//   run. We require it to have 3 properties: body, ip, useragent. Refer to
+//   get_comment() for their form.
+// - callback. Function. This is the Lambda callback function. Refer to the
+//   Lambda documentation for its behaviour.
+//
+// Returns: Nothing directly. It returns values using the calback parameter.
+exports.handle_request = function(config, sns, date, uuidgen, evt, callback) {
+	const comment = exports.get_comment(evt, date, uuidgen);
+	if (typeof comment === 'string') {
+		const html = exports.make_error_html(config, comment);
+		callback(null, html);
+		return;
+	}
+
+	exports.publish_comment_to_sns(
+		sns,
+		config.sns_arn,
+		comment,
+		function(err, comment) {
+			if (err) {
+				const html = exports.make_error_html(config, err);
+				callback(null, html);
+				return;
+			}
+
+			const html = exports.make_success_html(config, comment);
+			callback(null, html);
+		}
+	);
+};
+
 // Retrieve and validate input (our comment) from the Lambda event.
 //
 // We also assign an identifier and the time we receive the comment.
