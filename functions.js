@@ -8,7 +8,6 @@
 "use strict";
 
 const querystring = require('querystring');
-const uuidV1 = require('uuid/v1');
 
 // Retrieve and validate input (our comment) from the Lambda event.
 //
@@ -25,6 +24,9 @@ const uuidV1 = require('uuid/v1');
 //     - url, string, the page to comment on
 //   - ip, string, the source IP.
 //   - useragent, string, the source User-Agent.
+// - date, Object. We use this object to determine the current datetime. It must
+//   have a now function returning the epoch time in milliseconds.
+// - uuidgen, Function. When called it should generate a UUID.
 //
 // Returns: An object describing the comment, or a string with a plaintext error
 // message.
@@ -40,7 +42,7 @@ const uuidV1 = require('uuid/v1');
 // - id, string, UUID generated for this comment.
 //
 // We validate each string field is not zero length.
-exports.get_comment = function(evt) {
+exports.get_comment = function(evt, date, uuidgen) {
 	const comment = {};
 
 	// Pull out the fields from the request body.
@@ -56,7 +58,8 @@ exports.get_comment = function(evt) {
 	for (let i = 0; i < body_fields.length; i++) {
 		const field = body_fields[i];
 
-		if (!params.hasOwnProperty(field) || typeof params[field] !== 'string') {
+		// We can't use hasOwnProperty() on params. It does not extend from Object.
+		if (typeof params[field] !== 'string') {
 			return 'Missing field: ' + field;
 		}
 
@@ -79,6 +82,9 @@ exports.get_comment = function(evt) {
 		}
 
 		const value = evt[field].trim();
+
+		// User-Agent could legitimately not be there I suppose. But let's require
+		// it regardless.
 		if (value.length === 0) {
 			return 'Metadata must not be blank: ' + field;
 		}
@@ -88,8 +94,8 @@ exports.get_comment = function(evt) {
 
 	// Set some fields we generate here.
 
-	comment.id = uuidV1();
-	comment.time = Date.now();
+	comment.id = uuidgen();
+	comment.time = date.now();
 
 	return comment;
 };

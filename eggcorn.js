@@ -14,6 +14,7 @@
 const AWS = require('aws-sdk');
 const config = require('./config.js');
 const functions = require('./functions.js');
+const uuidV1 = require('uuid/v1');
 
 // Note for Lambda functions we do not need to set credentials on the AWS
 // config.
@@ -26,7 +27,7 @@ AWS.config.region = config.aws_region;
 // use the callback, please see
 // http://docs.aws.amazon.com/lambda/latest/dg/nodejs-prog-model-handler.html#nodejs-prog-model-handler-callback
 exports.handler = function(evt, context, callback) {
-	const comment = functions.get_comment(evt);
+	const comment = functions.get_comment(evt, Date, uuidV1);
 	if (typeof comment === 'string') {
 		const html = functions.make_error_html(config, comment);
 		// Tell Lambda there was no error. Because we'd rather show an error page
