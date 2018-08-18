@@ -1,0 +1,5 @@
+*.swp
+/build
+/config.js
+/node_modules
+/package.zip
