@@ -1,7 +1,7 @@
 all: package.zip
 
 clean:
-	rm -rf build package.zip
+	rm -rf build package.zip node_modules
 
 package.zip: build node_modules eggcorn.js config.js functions.js
 	rm -rf build/*
