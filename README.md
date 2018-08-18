@@ -62,7 +62,8 @@ We need to upload and configure the Lambda function now.
   * Choose Blank Function for the template.
   * Do not configure any triggers. Just click Next.
   * Enter a name, such as `eggcorn`.
-  * Leave runtime as `Node.js 4.3`.
+  * Choose the most recent Node.js version as the runtime. At the time of
+    writing that is 8.10.
   * Change Code entry type to Upload a .ZIP file.
   * Beside Function package, click Upload. Choose the `package.zip` you created
     in the prior section.
